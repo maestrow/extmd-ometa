@@ -1,0 +1,1 @@
+ometajs2js -i extmd.ometajs -o extmd.js -b

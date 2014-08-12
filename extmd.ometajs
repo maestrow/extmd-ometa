@@ -1,0 +1,13 @@
+ometa Extmd {
+
+	oneOf :a =  apply(a.pop()) | ?(a.length > 0) oneOf(a),
+
+	escapeExceptions = "&copy;",
+
+
+	special = ~escapeExceptions ('<' | '>' | '&'):c -> ['special', c]
+	
+	// header
+	// topLevel
+}
+

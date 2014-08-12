@@ -1,0 +1,8 @@
+var Extmd = require('../Extmd.ometajs').Extmd;
+
+ometa ExtmdTest <: Extmd {
+	test_a = 'a',
+	test_b = 'b',
+	test_c = 'c',
+	test_oneOf = ^oneOf([`test_a, `test_b, `test_c])
+}
