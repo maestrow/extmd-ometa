@@ -1,13 +1,105 @@
 ometa Extmd {
+    
+    // === Fundamentals
 
-	oneOf :a =  apply(a.pop()) | ?(a.length > 0) oneOf(a),
+    oneOf :a = apply(a.pop()) | ?(a.length > 0) oneOf(a),
+    betweenInline :t :n = (apply(t) -> this.arrAdd(n, t)):nn (~oneOf(this.arrCopy(nn)) inline(nn))*:c apply(t) -> c,
+    begin = ?{this._offset == 0},
+    isBol = ~end (begin | ?{this._source.substr(this._offset-1, 1) == '\n'}),  // Beginning Of the Line
+    isEol = '\n' | end,    // End Of Line
+    untilEol = (~isEol char)+:c isEol -> c.join(''),
+    repeat :rule :count = (apply(rule) ?{count-- >= 0})*:result ?{count == 0} -> result,
 
-	escapeExceptions = "&copy;",
+    // === Settings
+    
+    escapedChar = '~' char:c -> c,
+    b = seq('**'),
+    i = seq('//'),
+    u = seq('__'),
+    imgExt = seq('.jpg') | seq('.gif') | seq('.png') | seq('.svg'),
+    codeblock_boundary = seq('```'),
+    
+    // === Common 
 
+    escaped = escapedChar+:c -> [`escaped, c.join('')],
+    emptyLine = /\s*\n+\s*\n+/ -> '\n',
 
-	special = ~escapeExceptions ('<' | '>' | '&'):c -> ['special', c]
-	
-	// header
-	// topLevel
-}
+    // === Inline
 
+    // betweenInline
+    bold :n = betweenInline(`b, n):c -> [`bold, c],
+    italic :n = betweenInline(`i, n):c -> [`italic, c],
+    underline :n = betweenInline(`u, n):c -> [`underline, c],
+
+    // Link & Img
+    http = seq('http') 's'?:a seq('://'):b -> 'http' + (a||'') + b,
+    href :ext = http:a (~(apply(ext) /\s|$|\)/) char)+:b apply(ext):c -> a + b.join('') + (ext == `empty ? '' : c),
+    rawImg = href(`imgExt),
+    rawLink = href(`empty),
+    img = seq('![') (~']' char)+:title ']' '(' rawImg:href ')' -> [`img, href, title.join('')]
+      | rawImg:href -> [`img, href],
+    link = '[' (~'[' ~']' char)+:title ']' '(' rawLink:href ')' -> [`link, href, title.join('')]
+      | rawLink:href -> [`link, href],
+
+    inlinecode = '`' (~'`' char)+:c '`' -> [`inlinecode, c.join('')],
+
+    // Headers
+    header = isBol /\#{1,6}/:level ' '? untilEol:text -> [`header, level.length, Extmd.matchAll(text, 'topInline')],
+
+    // Text
+    special = b | i | u | link | img | inlinecode | escaped | emptyLine,
+    text = (~special char)+:c -> c.join(''),
+
+    inline :n = 
+        escaped
+      | inlinecode
+      | img
+      | link
+      | bold(n) | italic(n) | underline(n) 
+      | text,
+
+    topInline = inline([])+,
+
+    // === Blocks
+
+    // Lists
+    onespace = ' ',
+    listItemContent = untilEol:text -> Extmd.matchAll(text, 'topInline'),
+    bullet = ((digit+ '.') | '-' | '+' | '*') ' ',
+    listItem :level = isBol repeat(`onespace, level*2) bullet listItemContent:c list(level+1)?:sublist -> {
+      if (sublist && sublist.length > 0)
+        c.push(sublist);
+      return [`li, c]
+    },
+    list :level = listItem(level)+:items -> [`list, items],
+    topList = list(0),
+
+    // Code Block
+    codeblock = isBol codeblock_boundary '\n' (~('\n' codeblock_boundary) char)+:c '\n' codeblock_boundary isEol -> [`codeblock, c.join('')],
+
+    // Paragraph & Blockquote
+    para_content = inline([])+:c -> c,
+    para_end = end | emptyLine+,
+    paragraph  = isBol          (~para_end para_content):c para_end -> [`p, c],
+    blockquote = isBol '>' ' '? (~para_end para_content):c para_end -> [`blockquote, c],
+
+    // === Top
+
+    top = (header | blockquote | paragraph | topList | codeblock)+,
+};
+
+Extmd.prototype.arrAdd = function(arr, elem) {
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i] == elem) return arr;
+  }
+  arr[arr.length] = elem;
+  return arr;
+};
+
+Extmd.prototype.arrCopy = function(arr) {
+  var newArr = [];
+  for (var i = 0; i < arr.length; i++) {
+    newArr[newArr.length] = arr[i];
+  }
+  return newArr;
+};
